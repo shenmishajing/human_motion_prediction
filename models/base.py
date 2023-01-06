@@ -56,7 +56,8 @@ class LightningModule(_LightningModule, BaseModule, ABC):
                 for k, v in loss.items()
             }
         # calculate loss
-        loss["loss"] = torch.sum(torch.stack(list(loss.values())))
+        if 'loss' not in loss:
+            loss["loss"] = torch.sum(torch.stack(list(loss.values())))
         return loss
 
     def on_fit_start(self):
