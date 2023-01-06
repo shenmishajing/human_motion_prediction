@@ -32,7 +32,16 @@ data:
                     protocol: pro1
         dataloader_cfg:
             batch_size: 32
+            drop_last: true
             num_workers: 8
             prefetch_factor: 8
             pin_memory: true
         split_format_to: split
+
+trainer:
+    callbacks:
+        change_item:
+            - - -1
+              - init_args:
+                    monitor: val/jme
+                    filename: "epoch:{epoch}-val_jme:{val/jme:.4g}"
