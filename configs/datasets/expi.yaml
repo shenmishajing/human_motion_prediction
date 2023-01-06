@@ -1,0 +1,38 @@
+data:
+    class_path: datasets.LightningDataModule
+    init_args:
+        dataset_cfg:
+            train:
+                class_path: datasets.expi.ExPiDataset
+                init_args:
+                    data_root: data/ExPI
+                    input_n: 50
+                    output_n: 10
+                    protocol: pro1
+            val:
+                class_path: datasets.expi.ExPiDataset
+                init_args:
+                    data_root: data/ExPI
+                    input_n: 50
+                    output_n: 30
+                    protocol: pro1
+            test:
+                class_path: datasets.expi.ExPiDataset
+                init_args:
+                    data_root: data/ExPI
+                    input_n: 50
+                    output_n: 30
+                    protocol: pro1
+            predict:
+                class_path: datasets.expi.ExPiDataset
+                init_args:
+                    data_root: data/ExPI
+                    input_n: 50
+                    output_n: 30
+                    protocol: pro1
+        dataloader_cfg:
+            batch_size: 32
+            num_workers: 8
+            prefetch_factor: 8
+            pin_memory: true
+        split_format_to: split
