@@ -14,6 +14,12 @@ class ModelCheckpointWithLinkBest(ModelCheckpoint):
         super().__init__(*args, **kwargs)
         self.save_best = save_best
 
+    def setup(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", stage: str
+    ) -> None:
+        self.dirpath = os.path.join(trainer.log_dir, "checkpoints")
+        super().setup(trainer, pl_module, stage)
+
     def _update_best_and_save(
         self,
         current: torch.Tensor,

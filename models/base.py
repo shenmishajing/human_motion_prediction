@@ -21,7 +21,7 @@ class LightningModule(_LightningModule, BaseModule, ABC):
         self.lr = None
         self.batch_size = None
         self.loss_weights = loss_weights
-        self.loss_modules = torch.nn.ModuleDict(loss_modules if loss_modules else {})
+        self.loss_modules = torch.nn.ModuleDict(loss_modules) if loss_modules else None
 
     def configure_optimizer_parameters(self):
         return None
