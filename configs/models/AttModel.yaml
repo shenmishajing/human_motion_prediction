@@ -1,0 +1,10 @@
+model:
+    class_path: models.AttModel.AttModel
+    init_args:
+        in_features: 108
+        kernel_size: 10
+        d_model: 256
+        num_stage: 12
+        dct_n: 20
+        input_n: 50
+        output_n: 30
