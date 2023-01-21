@@ -7,8 +7,6 @@ MIT license.
 """
 # pi3d.py
 
-import numpy as np
-import torch
 from torch.utils.data import Dataset
 
 from .utils import *
@@ -16,24 +14,55 @@ from .utils import *
 # from IPython import embed
 
 
-class ExPiDataset(Dataset):
+class ExPIDataset(Dataset):
     def __init__(
-        self, data_root, input_n, output_n, protocol, test_split=None, split="train"
+        self,
+        data_root,
+        data_version,
+        input_n,
+        output_n,
+        protocol,
+        test_split=None,
+        split="train",
     ):
 
         self.data_root = data_root
+        self.data_version = data_version
         self.input_n = input_n
         self.output_n = output_n
         self.protocol = protocol
         self.test_split = test_split
+        self.all_origin = data_version.startswith("all")
+        self.cascade = "cascade" in data_version
+        self.deep_first = "dfs" in data_version
         self.is_train = split == "train"
-        self.split = 0 if self.is_train else 1
-        self.skip_rate = 1
-        self.p3d = {}
+        self.data = []
         self.data_idx = []
 
-        if self.protocol == "pro3":  # unseen action split
-            if self.is_train:  # train on acro2
+        if "spherical" in data_version:
+            self.coordinate = "spherical"
+            self.decode_points_func = (
+                lambda data: calculate_cartesian_coordinate_for_points(
+                    data.reshape(*data.shape[:-1], -1, 3)
+                ).reshape(*data.shape)
+            )
+        elif "person" in data_version:
+            self.coordinate = "person"
+            self.decode_points_func = lambda data: calculate_cartesian_coordinate(
+                data.reshape(*data.shape[:-1], -1, 3), self.cascade, self.deep_first
+            ).reshape(*data.shape)
+        else:
+            if "old_norm" in data_version:
+                self.coordinate = "old_norm"
+            else:
+                self.coordinate = "cartesian"
+            self.decode_points_func = lambda x: x
+
+        # unseen action split
+        if self.protocol == "unseen":
+
+            # train on acro2
+            if self.is_train:
                 acts = [
                     "2/a-frame",
                     "2/around-the-back",
@@ -67,7 +96,8 @@ class ExPiDataset(Dataset):
                     [3, 4, 5, 6, 7],
                 ]
 
-            else:  # test on acro1
+            # test on acro1
+            else:
                 acts = [
                     "2/crunch-toast",
                     "2/frog-kick",
@@ -91,13 +121,14 @@ class ExPiDataset(Dataset):
                     [1, 2, 3, 4, 5],
                 ]
 
-                if (
-                    self.test_split is not None
-                ):  # test per action for unseen action split
+                # test per action for unseen action split
+                if self.test_split is not None:
                     acts, subfix = [acts[self.test_split]], [subfix[self.test_split]]
 
-        else:  # common action split and single action split
-            if self.is_train:  # train on acro2
+        # common action split and single action split
+        else:
+            # train on acro2
+            if self.is_train:
                 acts = [
                     "2/a-frame",
                     "2/around-the-back",
@@ -117,19 +148,13 @@ class ExPiDataset(Dataset):
                     [2, 3, 4, 5, 6],
                 ]
 
-                if self.protocol in [
-                    "0",
-                    "1",
-                    "2",
-                    "3",
-                    "4",
-                    "5",
-                    "6",
-                ]:  # train per action for single action split
-                    acts = [acts[int(self.protocol)]]
-                    subfix = [subfix[int(self.protocol)]]
+                # train per action for single action split
+                if self.protocol != "common":
+                    acts = [acts[self.protocol]]
+                    subfix = [subfix[self.protocol]]
 
-            else:  # test on acro1
+            # test on acro1
+            else:
                 acts = [
                     "1/a-frame",
                     "1/around-the-back",
@@ -149,61 +174,37 @@ class ExPiDataset(Dataset):
                     [3, 4, 5, 6, 7],
                 ]
 
-                if (
-                    self.test_split is not None
-                ):  # test per action for common action split
+                # test per action for common action split
+                if self.test_split is not None:
                     acts, subfix = [acts[self.test_split]], [subfix[self.test_split]]
-                if self.protocol in [
-                    "0",
-                    "1",
-                    "2",
-                    "3",
-                    "4",
-                    "5",
-                    "6",
-                ]:  # test per action for single action split
-                    acts, subfix = [acts[int(self.protocol)]], [
-                        subfix[int(self.protocol)]
-                    ]
+                # test per action for single action split
+                elif self.protocol != "common":
+                    acts, subfix = [acts[self.protocol]], [subfix[self.protocol]]
 
-        key = 0
         for action_idx in range(len(acts)):
             subj_action = acts[action_idx]
             subj, action = subj_action.split("/")
             for subact_i in range(len(subfix[action_idx])):
                 subact = subfix[action_idx][subact_i]
-                filename = "{0}/acro{1}/{2}{3}/mocap_cleaned.tsv".format(
-                    self.data_root, subj, action, subact
-                )
-                the_sequence = readCSVasFloat(filename, with_key=True)
+                filename = f"{self.data_root}/{self.data_version}/acro{subj}/{action}{subact}/mocap_cleaned.csv"
+                the_sequence, _ = read_data(filename, with_key=True)
                 num_frames = the_sequence.shape[0]
-                the_sequence = normExPI_2p_by_frame(the_sequence)
-                the_sequence = torch.from_numpy(the_sequence).float()
 
                 if self.is_train:  # train
                     seq_len = self.input_n + self.output_n
-                    valid_frames = np.arange(
-                        0, num_frames - seq_len + 1, self.skip_rate
-                    )
+                    valid_frames = list(range(num_frames - seq_len + 1))
                 else:  # test
                     seq_len = self.input_n + 30
-                    valid_frames = find_indices_64(num_frames, seq_len)
+                    valid_frames = list(find_indices_64(num_frames, seq_len))
 
-                p3d = the_sequence
-                self.p3d[key] = p3d.view(num_frames, -1).data.numpy()
-                tmp_data_idx_1 = [key] * len(valid_frames)
-                tmp_data_idx_2 = list(valid_frames)
-                self.data_idx.extend(zip(tmp_data_idx_1, tmp_data_idx_2))
-                key += 1
-
-        self.dimension_use = np.arange(18 * 2 * 3)
-        self.in_features = len(self.dimension_use)
+                self.data.append(the_sequence.reshape(num_frames, -1))
+                self.data_idx.extend(
+                    zip([len(self.data) - 1] * len(valid_frames), valid_frames)
+                )
 
     def __len__(self):
-        return np.shape(self.data_idx)[0]
+        return len(self.data_idx)
 
     def __getitem__(self, item):
-        key, start_frame = self.data_idx[item]
-        fs = np.arange(start_frame, start_frame + self.input_n + self.output_n)
-        data = self.p3d[key][fs][:, self.dimension_use]
-        return data
+        idx, start_frame = self.data_idx[item]
+        return self.data[idx][start_frame : start_frame + self.input_n + self.output_n]

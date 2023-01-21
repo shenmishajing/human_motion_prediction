@@ -3,38 +3,38 @@ data:
     init_args:
         dataset_cfg:
             train:
-                class_path: datasets.expi.ExPiDataset
+                class_path: datasets.expi.ExPIDataset
                 init_args:
                     data_root: data/ExPI
+                    data_version: old_norm
+                    # data_version: all_frame_origin
+                    # data_version: all_frame_origin_spherical
+                    # data_version: all_frame_origin_person_dfs
+                    # data_version: all_frame_origin_person_bfs
+                    # data_version: all_frame_origin_person_cascade_dfs
+                    # data_version: all_frame_origin_person_cascade_bfs
+                    # data_version: first_frame_origin
+                    # data_version: first_frame_origin_spherical
+                    # data_version: first_frame_origin_person_dfs
+                    # data_version: first_frame_origin_person_bfs
+                    # data_version: first_frame_origin_person_cascade_dfs
+                    # data_version: first_frame_origin_person_cascade_bfs
                     input_n: 50
                     output_n: 10
-                    protocol: pro1
+                    protocol: common
             val:
-                class_path: datasets.expi.ExPiDataset
                 init_args:
-                    data_root: data/ExPI
-                    input_n: 50
                     output_n: 30
-                    protocol: pro1
             test:
-                class_path: datasets.expi.ExPiDataset
                 init_args:
-                    data_root: data/ExPI
-                    input_n: 50
                     output_n: 30
-                    protocol: pro1
             predict:
-                class_path: datasets.expi.ExPiDataset
                 init_args:
-                    data_root: data/ExPI
-                    input_n: 50
                     output_n: 30
-                    protocol: pro1
         dataloader_cfg:
             batch_size: 32
             drop_last: true
-            num_workers: 8
-            prefetch_factor: 8
+            num_workers: 0
             pin_memory: true
         split_format_to: split
 
