@@ -4,12 +4,13 @@ from abc import ABC
 from collections.abc import Mapping, Sequence
 
 from lightning.pytorch.cli import instantiate_class
-from lightning.pytorch.core.datamodule import (
-    LightningDataModule as _LightningDataModule,
-)
+from lightning.pytorch.core.datamodule import \
+    LightningDataModule as _LightningDataModule
 from sklearn.model_selection import KFold
 from torch.utils.data.dataloader import DataLoader
 from torch.utils.data.dataset import Subset
+
+from utils import deep_update
 
 
 class LightningDataModule(_LightningDataModule):
@@ -24,12 +25,8 @@ class LightningDataModule(_LightningDataModule):
     ):
         super().__init__()
 
-        self.dataset_cfg = dataset_cfg
-
-        if all([self.dataset_cfg.get(split) is None for split in self.SPLIT_NAMES]):
-            self.dataset_cfg = {
-                split: copy.deepcopy(self.dataset_cfg) for split in self.SPLIT_NAMES
-            }
+        self.dataset_cfg = self.get_split_config(dataset_cfg)
+        self.dataloader_cfg = self.get_split_config(dataloader_cfg)
 
         self.split_format_to = (
             split_format_to
@@ -53,10 +50,27 @@ class LightningDataModule(_LightningDataModule):
         for name in self.SPLIT_NAMES:
             self.split_name_map.setdefault(name, name if name != "predict" else "test")
 
-        self.dataloader_cfg = {} if dataloader_cfg is None else dataloader_cfg
-
         self.datasets = {}
         self.dataset = None
+
+    def get_split_config(self, config):
+        res = {}
+        if isinstance(config, Mapping):
+            if all([config.get(name) is None for name in self.SPLIT_NAMES]):
+                res = {name: copy.deepcopy(config) for name in self.SPLIT_NAMES}
+            else:
+                res = {}
+                for main_name in self.SPLIT_NAMES:
+                    if config.get(main_name) is not None:
+                        break
+                for name in self.SPLIT_NAMES:
+                    if config.get(name) is None or name == main_name:
+                        res[name] = copy.deepcopy(config[main_name])
+                    else:
+                        res[name] = deep_update(
+                            copy.deepcopy(config[main_name]), config[name]
+                        )
+        return res
 
     def _get_split_names(self, stage=None):
         if self.trainer.overfit_batches > 0:
@@ -121,7 +135,7 @@ class LightningDataModule(_LightningDataModule):
         else:
             collate_fn = self.collate_fn if hasattr(self, "collate_fn") else None
             return DataLoader(
-                dataset=dataset, collate_fn=collate_fn, **self.dataloader_cfg
+                dataset=dataset, collate_fn=collate_fn, **self.dataloader_cfg[split]
             )
 
 

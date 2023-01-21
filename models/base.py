@@ -39,16 +39,11 @@ class LightningModule(_LightningModule, BaseModule, ABC):
             batch_size = self.batch_size
         super().log(*args, batch_size=batch_size, **kwargs)
 
-    def _loss_step(self, batch, res):
+    def _loss_step(self, *args, **kwargs):
         raise NotImplementedError
 
-    def loss_step(
-        self,
-        batch,
-        res,
-        use_loss_weight=True,
-    ):
-        loss = self._loss_step(batch, res)
+    def loss_step(self, *args, use_loss_weight=True, **kwargs):
+        loss = self._loss_step(*args, **kwargs)
         # multi loss weights
         if use_loss_weight and self.loss_weights:
             loss = {
@@ -56,7 +51,7 @@ class LightningModule(_LightningModule, BaseModule, ABC):
                 for k, v in loss.items()
             }
         # calculate loss
-        if 'loss' not in loss:
+        if "loss" not in loss:
             loss["loss"] = torch.sum(torch.stack(list(loss.values())))
         return loss
 
