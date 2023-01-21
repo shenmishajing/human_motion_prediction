@@ -39,12 +39,11 @@ class GraphConvolution(nn.Module):
             self.bias.data.uniform_(-stdv, stdv)
 
     def forward(self, input):
-        support = torch.matmul(input, self.weight)  # w: 40, 256 -> 256,256 -> 256,40
-        output = torch.matmul(self.att, support)  # att: 39*39
+        support = input.matmul( self.weight)  # w: 40, 256 -> 256,256 -> 256,40
+        output = self.att.matmul( support)  # att: 39*39
         if self.bias is not None:
-            return output + self.bias
-        else:
-            return output
+            output= output + self.bias
+        return output
 
     def __repr__(self):
         return (
@@ -72,21 +71,17 @@ class GC_Block(nn.Module):
         self.gc2 = GraphConvolution(in_features, in_features, node_n=node_n, bias=bias)
         self.bn2 = nn.BatchNorm1d(node_n * in_features)
 
-        self.do = nn.Dropout(p_dropout)
-        self.act_f = nn.Tanh()
+        self.dropout = nn.Dropout(p_dropout)
+        self.act = nn.Tanh()
 
     def forward(self, x):
         y = self.gc1(x)
         b, n, f = y.shape
-        y = self.bn1(y.view(b, -1)).view(b, n, f)
-        y = self.act_f(y)
-        y = self.do(y)
+        y = self.dropout(self.act(self.bn1(y.reshape(b, -1)).reshape(b, n, f)))
 
         y = self.gc2(y)
         b, n, f = y.shape
-        y = self.bn2(y.view(b, -1)).view(b, n, f)
-        y = self.act_f(y)
-        y = self.do(y)
+        y = self.dropout(self.act(self.bn2(y.reshape(b, -1)).reshape(b, n, f)))
 
         return y + x
 
@@ -116,30 +111,25 @@ class GCN(nn.Module):
         self.num_stage = num_stage
 
         self.gc1 = GraphConvolution(input_feature, hidden_feature, node_n=node_n)
-        self.bn1 = nn.BatchNorm1d(node_n * hidden_feature)
+        self.bn = nn.BatchNorm1d(node_n * hidden_feature)
 
         self.gcbs = nn.ModuleList()
-        for i in range(num_stage):
+        for _ in range(num_stage):
             self.gcbs.append(
                 GC_Block(hidden_feature, p_dropout=p_dropout, node_n=node_n)
             )
 
         self.gc7 = GraphConvolution(hidden_feature, input_feature, node_n=node_n)
 
-        self.do = nn.Dropout(p_dropout)
-        self.act_f = nn.Tanh()
+        self.dropout = nn.Dropout(p_dropout)
+        self.act = nn.Tanh()
 
     def forward(self, x):
         y = self.gc1(x)
         b, n, f = y.shape
-        y = self.bn1(y.view(b, -1)).view(b, n, f)
-        y = self.act_f(y)
-        y = self.do(y)
+        y = self.dropout(self.act(self.bn(y.reshape(b, -1)).reshape(b, n, f)))
 
         for i in range(self.num_stage):
             y = self.gcbs[i](y)
 
-        y = self.gc7(y)
-        y = y + x
-
-        return y
+        return self.gc7(y) + x

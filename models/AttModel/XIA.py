@@ -12,15 +12,9 @@ from torch.nn import Module
 
 
 class XIA_multi(Module):
-    def __init__(self, embed_dim=256, nb_h=8, dropout=0.1, nb_att=2):
+    def __init__(self, nb_att=2, *args, **kwargs):
         super(XIA_multi, self).__init__()
-
-        self.xia_blocs = nn.ModuleList(
-            [
-                XIA(embed_dim=embed_dim, nb_h=nb_h, dropout=dropout)
-                for i in range(nb_att)
-            ]
-        )
+        self.xia_blocs = nn.ModuleList([XIA(*args, **kwargs) for _ in range(nb_att)])
 
     def forward(self, k1, k2):
         for xia in self.xia_blocs:
@@ -43,12 +37,6 @@ class XIA(Module):
 
     def forward(self, k1, k2):
         # return k1_new
-        query = k2.permute(2, 0, 1)
-        key = k1.permute(2, 0, 1)
-        value = k1.permute(2, 0, 1)
-        k1 = k1.permute(2, 0, 1)
-
-        k = self.self_attn(query, key, value=value)[0]
-        k1 = k1 + k
-        k1 = self.fc(k1)
-        return k1.permute(1, 2, 0)
+        x = k1.permute(2, 0, 1)
+        x = x + self.self_attn(k2.permute(2, 0, 1), x, value=x)[0]
+        return self.fc(x).permute(1, 2, 0)

@@ -4,17 +4,23 @@ under MIT license.
 """
 # util.py
 
+import math
 
-import numpy as np
+import torch
 
 
-def get_dct_matrix(N):
-    dct_m = np.eye(N)
-    for k in np.arange(N):
-        for i in np.arange(N):
-            w = np.sqrt(2 / N)
-            if k == 0:
-                w = np.sqrt(1 / N)
-            dct_m[k, i] = w * np.cos(np.pi * (i + 1 / 2) * k / N)
-    idct_m = np.linalg.inv(dct_m)
+def get_dct_matrix(N, tensor=None):
+    if tensor is None:
+        dtype = None
+        device = None
+    else:
+        dtype = tensor.dtype
+        device = tensor.device
+    i = torch.arange(N, dtype=dtype, device=device)[None, :]
+    j = torch.arange(N, dtype=dtype, device=device)[:, None]
+    dct_m = math.sqrt(1 / N) * torch.cos(math.pi * (i + 1 / 2) * j / N)
+    mask = torch.ones_like(j)
+    mask[0] = 0
+    dct_m *= (math.sqrt(2) - 1) * mask + 1
+    idct_m = torch.linalg.inv(dct_m)
     return dct_m, idct_m

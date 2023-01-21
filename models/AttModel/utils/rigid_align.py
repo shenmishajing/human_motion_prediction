@@ -1,43 +1,32 @@
 #!/usr/bin/env python
 # encoding: utf-8
-import numpy as np
 import torch
+
 # from IPython import embed
 
+
 def rigid_transform_3D(A, B):
-    centroid_A = np.mean(A, axis = 0)
-    centroid_B = np.mean(B, axis = 0)
-    H = np.dot(np.transpose(A - centroid_A), B - centroid_B)
-    U, s, V = np.linalg.svd(H)
-    R = np.dot(np.transpose(V), np.transpose(U))
-    if np.linalg.det(R) < 0:
-        V[2] = -V[2]
-        R = np.dot(np.transpose(V), np.transpose(U))
-    t = -np.dot(R, np.transpose(centroid_A)) + np.transpose(centroid_B)
+    centroid_A = A.mean(dim=-2, keepdim=True)
+    centroid_B = B.mean(dim=-2, keepdim=True)
+    H = (A - centroid_A).mT.matmul(B - centroid_B)
+    U, s, V = torch.linalg.svd(H)
+    R = U.matmul(V).mT
+    V[..., 2, :] = -V[..., 2, :]
+    NR = U.matmul(V).mT
+    R = R.where((torch.linalg.det(R) > 0)[..., None, None], NR)
+    t = centroid_B - centroid_A.matmul(R.mT)
     return R, t
 
-def rigid_align(A, B):
-    R, t = rigid_transform_3D(A, B)
-    A2 = np.transpose(np.dot(R, np.transpose(A))) + t
-    return A2
 
-def rigid_align_torch(A, B):
+def _rigid_align(A, B):
+    R, t = rigid_transform_3D(A, B)
+    return A.matmul(R.mT) + t
+
+
+def rigid_align(A, B):
     # align A to B
     # A,B:torch.Size([ba, nb_frames, 36, 3])
-    A = A.detach().cpu().numpy()
-    B = B.detach().cpu().numpy()
-    bz, nb_f, nb_kpts, _ = A.shape
-    A2 = A
-    assert nb_kpts == 18 or nb_kpts == 36
-    for b in range(bz):
-        for n in range(nb_f):
-            #A2[b][n] = rigid_align(A[b][n],B[b][n])
-            if nb_kpts == 18:
-                A2[b][n] = rigid_align(A[b][n],B[b][n])
-            elif nb_kpts == 36:
-                A2[b][n][:18] = rigid_align(A[b][n][:18],B[b][n][:18])
-                A2[b][n][18:] = rigid_align(A[b][n][18:],B[b][n][18:])
-
-    return torch.from_numpy(A2).cuda()
-
-
+    A = A.reshape(*A.shape[:2], -1, 18, 3)
+    B = B.reshape(*B.shape[:2], -1, 18, 3)
+    res = [_rigid_align(A[:, :, i], B[:, :, i])[:, :, None] for i in range(A.shape[2])]
+    return torch.cat(res, dim=2).reshape(*A.shape[:2], -1, 3)
