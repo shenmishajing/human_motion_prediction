@@ -49,6 +49,8 @@ def save_data(data, version_name, title, root, file, original_name="original"):
         root.replace(original_name, version_name),
         file.replace("tsv", "csv"),
     )
+    if data.isnan().any():
+        print(f"data {output_file} has nan")
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
     np.savetxt(
         output_file,
@@ -195,7 +197,7 @@ def calculate_spherical_coordinate_for_points(data, *args, **kwargs):
     if args or kwargs:
         data = transfer_data(data, *args, **kwargs)
     r = torch.linalg.norm(data, dim=-1)
-    theta = torch.acos(data[..., 2] / r)
+    theta = torch.acos(data[..., 2] / r.clamp(1e-9))
     phi = torch.atan2(data[..., 1], data[..., 0])
     return torch.stack([r, theta, phi], dim=-1)
 
